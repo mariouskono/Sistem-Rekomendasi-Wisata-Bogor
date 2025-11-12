@@ -8,7 +8,7 @@ from streamlit_folium import folium_static
 # KONFIGURASI HALAMAN
 # =============================================================================
 st.set_page_config(
-    page_title="Rekomendasi Wisata Bogor",
+    page_title="BogorTravel",  # NAMA BARU
     page_icon="🌳",
     layout="wide"
 )
@@ -30,14 +30,12 @@ def haversine(lat1, lon1, lat2, lon2):
 # =============================================================================
 # MEMUAT DATA (MENGGUNAKAN CACHE)
 # =============================================================================
-# st.cache_data memastikan data hanya dimuat sekali
 @st.cache_data
 def load_data():
     """
     Memuat data lookup (bersih) dan matriks kesamaan (otak model)
     """
     try:
-        # Ganti dengan path file Anda jika perlu
         df_lookup = pd.read_csv("df_lookup_wisata.csv")
     except FileNotFoundError:
         st.error("File 'df_lookup_wisata.csv' tidak ditemukan. Pastikan file ada di folder yang sama.")
@@ -89,26 +87,46 @@ def get_recommendations_hybrid(input_place_name, user_lat, user_lon, radius_km, 
 # ANTARMUKA PENGGUNA (USER INTERFACE)
 # =============================================================================
 
-st.title("Sistem Rekomendasi Wisata Cerdas 🌳")
+# --- CSS KUSTOM UNTUK CARD SIMETRIS ---
+# Ini adalah "sihir"-nya.
+# Kita target `st.container(border=True)` (yaitu `[data-testid="stBlock"]`)
+# dan memaksanya memiliki tinggi minimal dan layout flexbox
+st.markdown("""
+    <style>
+    [data-testid="stBlock"] {
+        /* Ini adalah elemen st.container(border=True) */
+        padding: 1rem;
+        border-radius: 0.5rem;
+        min-height: 280px; /* Paksa tinggi minimal untuk semua card */
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between; /* Dorong tombol ke bawah */
+    }
+    [data-testid="stBlock"] h4 { /* Atur ukuran judul card */
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+    }
+    [data-testid="stBlock"] .stMarkdown {
+        margin-bottom: 0.25rem; /* Kurangi jarak antar teks */
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+st.title("BogorTravel 🌳") # NAMA BARU
 st.markdown("Temukan tempat wisata di Bogor berdasarkan kemiripan, kualitas, dan kedekatan lokasi.")
 
-# Hanya lanjutkan jika data berhasil dimuat
 if df_lookup is not None and similarity_matrix is not None:
     
-    # --- Input Pengguna (di Sidebar) ---
     st.sidebar.header("Pencarian Anda")
     
-    # 1. Pilih tempat wisata yang disukai
-    # Ambil daftar nama tempat dari 'nama_tempat_wisata' di df_lookup
     place_list = df_lookup['nama_tempat_wisata'].unique()
     selected_place = st.sidebar.selectbox(
         "Pilih tempat wisata yang Anda sukai:",
         options=place_list,
-        index=0 # Tampilkan item pertama sebagai default
+        index=0
     )
     
-    # 2. Ambil lokasi pengguna (secara proxy dari tempat yang dipilih)
-    # Ini adalah asumsi cerdas: lokasi pengguna adalah lokasi tempat yang ia pilih
     selected_place_data = df_lookup[df_lookup['nama_tempat_wisata'] == selected_place].iloc[0]
     user_lat = selected_place_data['latitude']
     user_lon = selected_place_data['longitude']
@@ -116,30 +134,19 @@ if df_lookup is not None and similarity_matrix is not None:
     st.sidebar.markdown(f"**Lokasi Anda (Asumsi):**")
     st.sidebar.markdown(f"`{selected_place}`")
     
-    # 3. Pilih radius pencarian
     radius_km = st.sidebar.slider(
-        "Cari dalam radius (km):",
-        min_value=1,
-        max_value=30,
-        value=10, # Default 10km
-        step=1
+        "Cari dalam radius (km):", 1, 30, 10, 1
     )
     
-    # 4. Pilih jumlah rekomendasi
     top_n = st.sidebar.number_input(
-        "Jumlah rekomendasi:",
-        min_value=3,
-        max_value=10,
-        value=5 # Default 5
+        "Jumlah rekomendasi:", 3, 10, 5 # Ubah max_value ke 10
     )
 
-    # --- Tombol "Run" ---
     if st.sidebar.button("Dapatkan Rekomendasi"):
         
         st.header(f"Rekomendasi Teratas untuk Anda")
         st.markdown(f"Berdasarkan kemiripan dengan **{selected_place}**, dalam radius **{radius_km} km**.")
         
-        # Panggil fungsi rekomendasi
         recs = get_recommendations_hybrid(
             selected_place, 
             user_lat, 
@@ -153,15 +160,36 @@ if df_lookup is not None and similarity_matrix is not None:
         if recs.empty:
             st.warning("Maaf, tidak ditemukan rekomendasi yang sesuai dengan kriteria Anda. Coba perbesar radius pencarian.")
         else:
-            # --- Tampilkan Hasil ---
             st.success(f"Menampilkan {len(recs)} rekomendasi terbaik:")
             
-            # Buat peta
-            # Tentukan lokasi tengah peta
+            # --- PERUBAHAN TATA LETAK CARD ---
+            # Buat 5 kolom untuk grid
+            cols = st.columns(5)
+            
+            for i, idx in enumerate(recs.index):
+                row = recs.loc[idx]
+                
+                # Gunakan 'i % 5' untuk menempatkan card di kolom yang benar
+                # Ini akan otomatis "wrap" ke baris berikutnya setelah 5 card
+                with cols[i % 5]:
+                    # Gunakan st.container(border=True) untuk membuat card
+                    with st.container(border=True):
+                        # Grup 1: Info Teks (akan ada di atas)
+                        st.markdown(f"<h4>{i+1}. {row['nama_tempat_wisata']}</h4>", unsafe_allow_html=True)
+                        st.markdown(f"`{row['kategori']}`")
+                        st.markdown(f"**Rating:** {row['rating']} ⭐ ({row['jumlah_rating']} ulasan)")
+                        st.markdown(f"**Jarak:** {row['distance_km']:.2f} km")
+                        st.markdown(f"**Kesamaan:** {row['similarity']:.1%}")
+                        
+                        # Grup 2: Tombol (akan terdorong ke bawah)
+                        st.link_button("Lihat di Google Maps", row['link'], use_container_width=True)
+
+            # --- PETA REKOMENDASI ---
+            st.header("Peta Rekomendasi")
             map_center = [user_lat, user_lon]
             m = folium.Map(location=map_center, zoom_start=12)
             
-            # Tambahkan marker untuk lokasi pengguna (tempat yang dipilih)
+            # Marker Lokasi Pengguna
             folium.Marker(
                 [user_lat, user_lon],
                 tooltip=f"Lokasi Anda (Asumsi): {selected_place}",
@@ -169,21 +197,8 @@ if df_lookup is not None and similarity_matrix is not None:
                 icon=folium.Icon(color="blue", icon="user")
             ).add_to(m)
 
-            # Tampilkan rekomendasi dalam kolom
-            cols = st.columns(len(recs))
-            
-            for i, (col, idx) in enumerate(zip(cols, recs.index)):
-                row = recs.loc[idx]
-                
-                with col:
-                    st.subheader(f"{i+1}. {row['nama_tempat_wisata']}")
-                    st.markdown(f"**Kategori:** `{row['kategori']}`")
-                    st.markdown(f"**Rating:** {row['rating']} ⭐ ({row['jumlah_rating']} ulasan)")
-                    st.markdown(f"**Jarak:** {row['distance_km']:.2f} km")
-                    st.markdown(f"**Kesamaan:** {row['similarity']:.2%}")
-                    st.link_button("Lihat di Google Maps", row['link'])
-
-                # Tambahkan marker untuk setiap rekomendasi
+            # Marker Rekomendasi
+            for i, row in recs.iterrows():
                 folium.Marker(
                     [row['latitude'], row['longitude']],
                     tooltip=f"{row['nama_tempat_wisata']} (Rating: {row['rating']})",
@@ -191,8 +206,6 @@ if df_lookup is not None and similarity_matrix is not None:
                     icon=folium.Icon(color="green", icon="tree-conifer")
                 ).add_to(m)
 
-            # Tampilkan peta di bawah hasil
-            st.header("Peta Rekomendasi")
             folium_static(m, width=900, height=500)
             
 else:
