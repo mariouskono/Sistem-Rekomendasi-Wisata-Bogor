@@ -6,9 +6,6 @@ Aplikasi ini menggunakan pendekatan **hybrid** yang menggabungkan:
 - **Deep Learning (Autoencoder)** untuk kesamaan konten,  
 - **Filter geospasial** untuk kedekatan lokasi,  
 - **Filter kualitas** berdasarkan ulasan pengguna.  
-
-*(Catatan: Ganti URL di bawah ini dengan screenshot aplikasi yang sudah kamu upload ke GitHub.)*
-
 ---
 
 ## 🎯 Konsep Inti & Fokus Deep Learning  
